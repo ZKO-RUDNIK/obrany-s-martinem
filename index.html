@@ -26,9 +26,15 @@
   --shadow-sm: 0 2px 8px rgba(0,0,0,0.08);
 }
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-<script type="module">
+<h2>Data z Firebase</h2>
+<ul id="firebase-data"></ul>
+  <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
-  import { getFirestore } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
+  import { 
+    getFirestore,
+    collection,
+    getDocs
+  } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyCrTSWiZuzpad4AJCT5SyEAjxJOY54xoMM",
@@ -43,7 +49,27 @@
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
 
-  console.log("Firebase je připojená");
+  async function loadRegistrations() {
+    try {
+      const querySnapshot = await getDocs(collection(db, "registrations"));
+      const list = document.getElementById("firebase-data");
+
+      if (!list) return;
+
+      list.innerHTML = "";
+
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        const item = document.createElement("li");
+        item.textContent = `Jméno: ${data.name || ""}, Pes: ${data.dog || ""}`;
+        list.appendChild(item);
+      });
+    } catch (error) {
+      console.error("Chyba při načítání z Firebase:", error);
+    }
+  }
+
+  loadRegistrations();
 </script>
 </body>
 </html>  
