@@ -1294,13 +1294,43 @@ if(savedConfig){
 
 <script type="module">
   const list = document.getElementById("firebase-data");
-  list.innerHTML = "<li>TEST MODULE FUNGUJE</li>";
+  list.innerHTML = "<li>TEST START</li>";
 
   try {
-    const mod = await import("https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js");
-    list.innerHTML = "<li>TEST FIREBASE-APP NAČTENO</li>";
+    const { initializeApp } = await import("https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js");
+    const { getFirestore, collection, getDocs } = await import("https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js");
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyCrTSWiZuzpad4AJCT5SyEAjxJOY54xoMM",
+      authDomain: "zko-rudnik-obrany-fc573.firebaseapp.com",
+      projectId: "zko-rudnik-obrany-fc573",
+      storageBucket: "zko-rudnik-obrany-fc573.firebasestorage.app",
+      messagingSenderId: "389782711176",
+      appId: "1:389782711176:web:70ac8856df314eb6a1a83d",
+      measurementId: "G-KPHZRCZH3C"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    list.innerHTML = "<li>TEST FIRESTORE PŘIPOJENA</li>";
+
+    const querySnapshot = await getDocs(collection(db, "registrations"));
+
+    list.innerHTML = "";
+
+    querySnapshot.forEach((doc) => {
+      const data = doc.data();
+      const item = document.createElement("li");
+      item.textContent = `Jméno: ${data.name || ""}, Pes: ${data.dog || ""}`;
+      list.appendChild(item);
+    });
+
+    if (querySnapshot.empty) {
+      list.innerHTML = "<li>Kolekce je prázdná.</li>";
+    }
   } catch (error) {
-    list.innerHTML = `<li>CHYBA IMPORTU firebase-app: ${error.message}</li>`;
+    list.innerHTML = `<li>CHYBA: ${error.message}</li>`;
   }
 </script>
 </body>
