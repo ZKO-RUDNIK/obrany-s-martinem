@@ -615,18 +615,59 @@ function showMsg(m) { document.getElementById('loadMsg').textContent = m; }
 // ═══════════════════════════════════════════════════
 let gotS=false, gotR=false, gotC=false;
 
+// Seed prázdné databáze demo daty
+function seedIfEmpty() {
+  if (D.sessions.length > 0) return; // databáze není prázdná
+  const now = new Date();
+  const off = n => { const d = new Date(now); d.setDate(d.getDate()+n); return d.toISOString().split('T')[0]; };
+  const s1=uid(), s2=uid(), s3=uid();
+  const seeds = [
+    {id:s1,date:off(5),location:'ZKO Rudník',startTime:'08:00',slotDuration:20,slotCount:20,repeatGroupId:null,createdAt:Date.now()},
+    {id:s2,date:off(12),location:'ZKO Rudník',startTime:'08:00',slotDuration:20,slotCount:20,repeatGroupId:null,createdAt:Date.now()},
+    {id:s3,date:off(19),location:'ZKO Rudník',startTime:'08:00',slotDuration:20,slotCount:20,repeatGroupId:null,createdAt:Date.now()}
+  ];
+  const demoRegs = [
+    {id:uid(),sessionId:s1,slotTime:'08:00',handlerName:'Jan Novák',dogName:'Rex',status:'confirmed',waitlistPosition:null,createdAt:Date.now()},
+    {id:uid(),sessionId:s1,slotTime:'08:20',handlerName:'Eva Procházková',dogName:'Bára',status:'confirmed',waitlistPosition:null,createdAt:Date.now()}
+  ];
+  seeds.forEach(s=>fsSet('sessions',s.id,s));
+  demoRegs.forEach(r=>fsSet('registrations',r.id,r));
+  console.log('Demo data vytvořena.');
+}
+
 function startListeners() {
-  showMsg('Načítám tréninky…');
+  showMsg('Připojuji se k Firebase…');
+
+  // Timeout — pokud se loading nezavře do 10s, force-zavři s chybou
+  const TO = setTimeout(()=>{
+    if (!ready) {
+      gotS=gotR=gotC=true;
+      document.getElementById('loadOverlay').style.display='none';
+      toast('Nepodařilo se načíst data. Zkontroluj Firebase konfiguraci a Firestore pravidla (Rules → allow read, write: if true).','err');
+      renderPublic();
+    }
+  }, 10000);
 
   db.collection('sessions').onSnapshot(snap=>{
     D.sessions = snap.docs.map(d=>({id:d.id,...d.data()}));
-    gotS=true; tryReady();
-  }, err=>{ console.error(err); showMsg('Chyba načítání dat. Zkontroluj Firestore pravidla.'); });
+    gotS=true;
+    showMsg('Tréninky ✓ · Přihlášky ' + (gotR?'✓':'…') + ' · Config ' + (gotC?'✓':'…'));
+    tryReady(TO);
+  }, err=>{
+    console.error('sessions:', err.code, err.message);
+    showMsg('⚠ Chyba sessions: ' + err.code);
+    gotS=true; tryReady(TO);
+  });
 
   db.collection('registrations').onSnapshot(snap=>{
     D.registrations = snap.docs.map(d=>({id:d.id,...d.data()}));
-    gotR=true; tryReady();
-  }, err=>console.error(err));
+    gotR=true;
+    showMsg('Tréninky ' + (gotS?'✓':'…') + ' · Přihlášky ✓ · Config ' + (gotC?'✓':'…'));
+    tryReady(TO);
+  }, err=>{
+    console.error('registrations:', err.code, err.message);
+    gotR=true; tryReady(TO);
+  });
 
   db.collection('meta').doc('config').onSnapshot(doc=>{
     if (doc.exists) {
@@ -635,15 +676,18 @@ function startListeners() {
       D.contact       = d.contact       || {};
       D.adminPassword = d.adminPassword || 'admin123';
     }
-    gotC=true; tryReady();
-  }, err=>{ gotC=true; tryReady(); }); // config is optional
+    gotC=true; tryReady(TO);
+  }, err=>{ gotC=true; tryReady(TO); });
 }
 
-function tryReady() {
+function tryReady(TO) {
   if (!gotS || !gotR || !gotC) return;
+  clearTimeout(TO);
   if (!ready) {
     ready=true;
     document.getElementById('loadOverlay').style.display='none';
+    // Prázdná databáze → vytvoř demo tréninky
+    seedIfEmpty();
   }
   renderPublic();
   if (loggedIn) { renderSessions(); renderRegs(); }
