@@ -1292,47 +1292,6 @@ if(savedConfig){
 <h2>Data z Firebase</h2>
 <ul id="firebase-data"></ul>
 
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
-  import {
-    getFirestore,
-    collection,
-    getDocs
-  } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
-
-  const firebaseConfig = {
-    apiKey: "AIzaSyCrTSWiZuzpad4AJCT5SyEAjxJOY54xoMM",
-    authDomain: "zko-rudnik-obrany-fc573.firebaseapp.com",
-    projectId: "zko-rudnik-obrany-fc573",
-    storageBucket: "zko-rudnik-obrany-fc573.firebasestorage.app",
-    messagingSenderId: "389782711176",
-    appId: "1:389782711176:web:70ac8856df314eb6a1a83d",
-    measurementId: "G-KPHZRCZH3C"
-  };
-
-  const app = initializeApp(firebaseConfig);
-  const db = getFirestore(app);
-
-  async function loadRegistrations() {
-    try {
-      const querySnapshot = await getDocs(collection(db, "registrations"));
-      const list = document.getElementById("firebase-data");
-      if (!list) return;
-
-      list.innerHTML = "";
-
-      querySnapshot.forEach((doc) => {
-        const data = doc.data();
-        const item = document.createElement("li");
-        item.textContent = `Jméno: ${data.name || ""}, Pes: ${data.dog || ""}`;
-        list.appendChild(item);
-      });
-    } catch (error) {
-      console.error("Chyba při načítání z Firebase:", error);
-    }
-  }
-
-  loadRegistrations();
 </script>
 </body>
 </html>
