@@ -1295,6 +1295,13 @@ if(savedConfig){
 <script type="module">
   const list = document.getElementById("firebase-data");
   list.innerHTML = "<li>TEST MODULE FUNGUJE</li>";
+
+  try {
+    const mod = await import("https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js");
+    list.innerHTML = "<li>TEST FIREBASE-APP NAČTENO</li>";
+  } catch (error) {
+    list.innerHTML = `<li>CHYBA IMPORTU firebase-app: ${error.message}</li>`;
+  }
 </script>
 </body>
 </html>
