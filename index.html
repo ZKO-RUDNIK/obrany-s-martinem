@@ -366,12 +366,37 @@ td{padding:10px 13px;color:var(--tm);border-bottom:1px solid #eee;vertical-align
 
     <div id="tS" class="tc">
       <div class="sec-hd"><h2>Nastavení</h2></div>
-      <div class="stc">
+      <div class="stc" style="margin-bottom:20px">
         <h3 style="font-size:.95rem;margin-bottom:15px;color:var(--gd)">Změna hesla</h3>
         <div class="fg"><label>Aktuální heslo</label><input type="password" id="pCur"></div>
         <div class="fg"><label>Nové heslo</label><input type="password" id="pNew"></div>
         <div class="fg"><label>Nové heslo znovu</label><input type="password" id="pCon"></div>
         <button class="btn bp" onclick="changePwd()">Změnit heslo</button>
+      </div>
+      <div class="stc" style="max-width:500px;margin-bottom:20px">
+        <h3 style="font-size:.95rem;margin-bottom:10px;color:var(--gd)">🧪 Demo tréninky</h3>
+        <p style="font-size:.84rem;color:var(--tl);margin-bottom:12px;line-height:1.55">
+          Vytvoří 3 ukázkové tréninky (za 5, 12 a 19 dní) s ukázkovými přihláškami. Použij při prvním spuštění nebo pro testování.
+        </p>
+        <button class="btn ba" onclick="manualSeed()">＋ Vytvořit demo tréninky</button>
+      </div>
+      <div class="stc" style="max-width:500px;background:#fff8ef;border:1.5px solid #ffdda0">
+        <h3 style="font-size:.95rem;margin-bottom:10px;color:var(--am)">⚠ Firestore pravidla (Rules)</h3>
+        <p style="font-size:.84rem;color:var(--tm);line-height:1.6">
+          Pokud data nejdou zobrazit nebo ukládat, zkontroluj pravidla v Firebase konzoli:<br>
+          <strong>Firestore Database → Rules</strong> a nastav:
+        </p>
+        <div style="background:#1e1e1e;border-radius:6px;padding:12px;margin-top:10px;font-family:monospace;font-size:.82rem;color:#ce9178;line-height:1.6">
+          rules_version = '2';<br>
+          service cloud.firestore {<br>
+          &nbsp;&nbsp;match /databases/{db}/documents {<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;match /{doc=**} {<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;allow read, write: if true;<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;}<br>
+          &nbsp;&nbsp;}<br>
+          }
+        </div>
+        <p style="font-size:.78rem;color:var(--tl);margin-top:8px">Po změně klikni <strong>Publish</strong> v Firebase konzoli.</p>
       </div>
     </div>
   </div>
@@ -516,7 +541,14 @@ td{padding:10px 13px;color:var(--tm);border-bottom:1px solid #eee;vertical-align
 // ═══════════════════════════════════════════════════
 // Pokud chceš config zapéct přímo do souboru, nahraď null objektem:
 // const BAKED_CONFIG = { apiKey:"...", projectId:"...", ... };
-const BAKED_CONFIG = null;
+const BAKED_CONFIG = {
+  apiKey: "AIzaSyCrTSWiZuzpad4AJCT5SyEAjxJOY54xoMM",
+  authDomain: "zko-rudnik-obrany-fc573.firebaseapp.com",
+  projectId: "zko-rudnik-obrany-fc573",
+  storageBucket: "zko-rudnik-obrany-fc573.firebasestorage.app",
+  messagingSenderId: "389782711176",
+  appId: "1:389782711176:web:70ac8856df314eb6a1a83d"
+};
 
 // ═══════════════════════════════════════════════════
 //  STATE
@@ -613,95 +645,125 @@ function showMsg(m) { document.getElementById('loadMsg').textContent = m; }
 // ═══════════════════════════════════════════════════
 //  FIRESTORE LISTENERS
 // ═══════════════════════════════════════════════════
+// Stav načítání (počáteční)
 let gotS=false, gotR=false, gotC=false;
+let loadTO = null;
 
-// Seed prázdné databáze demo daty
-function seedIfEmpty() {
-  if (D.sessions.length > 0) return; // databáze není prázdná
+// Hlavní re-render — volaný při každé změně dat
+function rerender() {
+  renderPublic();
+  if (loggedIn) {
+    renderSessions();
+    // Přihlášky tab přerenderi jen pokud je aktivní
+    if (document.getElementById('tR').classList.contains('act')) renderRegs();
+  }
+}
+
+// Ruční seed (tlačítko v adminu)
+async function manualSeed() {
   const now = new Date();
-  const off = n => { const d = new Date(now); d.setDate(d.getDate()+n); return d.toISOString().split('T')[0]; };
+  const off = n => { const d=new Date(now); d.setDate(d.getDate()+n); return d.toISOString().split('T')[0]; };
   const s1=uid(), s2=uid(), s3=uid();
-  const seeds = [
-    {id:s1,date:off(5),location:'ZKO Rudník',startTime:'08:00',slotDuration:20,slotCount:20,repeatGroupId:null,createdAt:Date.now()},
-    {id:s2,date:off(12),location:'ZKO Rudník',startTime:'08:00',slotDuration:20,slotCount:20,repeatGroupId:null,createdAt:Date.now()},
-    {id:s3,date:off(19),location:'ZKO Rudník',startTime:'08:00',slotDuration:20,slotCount:20,repeatGroupId:null,createdAt:Date.now()}
+  const items = [
+    ['sessions', {id:s1,date:off(5),location:'ZKO Rudník',startTime:'08:00',slotDuration:20,slotCount:20,repeatGroupId:null,createdAt:Date.now()}],
+    ['sessions', {id:s2,date:off(12),location:'ZKO Rudník',startTime:'08:00',slotDuration:20,slotCount:20,repeatGroupId:null,createdAt:Date.now()}],
+    ['sessions', {id:s3,date:off(19),location:'ZKO Rudník',startTime:'08:00',slotDuration:20,slotCount:20,repeatGroupId:null,createdAt:Date.now()}],
+    ['registrations', {id:uid(),sessionId:s1,slotTime:'08:00',handlerName:'Jan Novák',dogName:'Rex',status:'confirmed',waitlistPosition:null,createdAt:Date.now()}],
+    ['registrations', {id:uid(),sessionId:s1,slotTime:'08:20',handlerName:'Eva Procházková',dogName:'Bára',status:'confirmed',waitlistPosition:null,createdAt:Date.now()}]
   ];
-  const demoRegs = [
-    {id:uid(),sessionId:s1,slotTime:'08:00',handlerName:'Jan Novák',dogName:'Rex',status:'confirmed',waitlistPosition:null,createdAt:Date.now()},
-    {id:uid(),sessionId:s1,slotTime:'08:20',handlerName:'Eva Procházková',dogName:'Bára',status:'confirmed',waitlistPosition:null,createdAt:Date.now()}
-  ];
-  seeds.forEach(s=>fsSet('sessions',s.id,s));
-  demoRegs.forEach(r=>fsSet('registrations',r.id,r));
-  console.log('Demo data vytvořena.');
+  try {
+    const batch = db.batch();
+    items.forEach(([col, doc]) => batch.set(db.collection(col).doc(doc.id), doc));
+    await batch.commit();
+    toast('✔ Demo tréninky vytvořeny — zobrazí se za chvíli.','ok');
+  } catch(e) {
+    console.error('manualSeed error:', e);
+    toast('⚠ Chyba zápisu: ' + e.message, 'err');
+    alert('Chyba zápisu do Firebase:\n\n' + e.code + ': ' + e.message + '\n\nJdi do Firebase konzoli → Firestore → Rules a over, že je nastaveno:\nallow read, write: if true;\nA klikni Publish!');
+  }
 }
 
 function startListeners() {
   showMsg('Připojuji se k Firebase…');
 
-  // Timeout — pokud se loading nezavře do 10s, force-zavři s chybou
-  const TO = setTimeout(()=>{
+  // Force-hide loading po 12s
+  loadTO = setTimeout(()=>{
     if (!ready) {
-      gotS=gotR=gotC=true;
+      ready = true;
       document.getElementById('loadOverlay').style.display='none';
-      toast('Nepodařilo se načíst data. Zkontroluj Firebase konfiguraci a Firestore pravidla (Rules → allow read, write: if true).','err');
-      renderPublic();
+      toast('Timeout: data se nenačetla. Zkontroluj Firestore Rules.','err');
+      rerender();
     }
-  }, 10000);
+  }, 12000);
 
-  db.collection('sessions').onSnapshot(snap=>{
-    D.sessions = snap.docs.map(d=>({id:d.id,...d.data()}));
-    gotS=true;
-    showMsg('Tréninky ✓ · Přihlášky ' + (gotR?'✓':'…') + ' · Config ' + (gotC?'✓':'…'));
-    tryReady(TO);
-  }, err=>{
-    console.error('sessions:', err.code, err.message);
-    showMsg('⚠ Chyba sessions: ' + err.code);
-    gotS=true; tryReady(TO);
-  });
-
-  db.collection('registrations').onSnapshot(snap=>{
-    D.registrations = snap.docs.map(d=>({id:d.id,...d.data()}));
-    gotR=true;
-    showMsg('Tréninky ' + (gotS?'✓':'…') + ' · Přihlášky ✓ · Config ' + (gotC?'✓':'…'));
-    tryReady(TO);
-  }, err=>{
-    console.error('registrations:', err.code, err.message);
-    gotR=true; tryReady(TO);
-  });
-
-  db.collection('meta').doc('config').onSnapshot(doc=>{
-    if (doc.exists) {
-      const d=doc.data();
-      D.trainerInfo   = d.trainerInfo   || '';
-      D.contact       = d.contact       || {};
-      D.adminPassword = d.adminPassword || 'admin123';
+  // SESSIONS listener
+  db.collection('sessions').onSnapshot(
+    snap => {
+      D.sessions = snap.docs.map(d => ({id:d.id, ...d.data()}));
+      gotS = true;
+      console.log('sessions updated:', D.sessions.length);
+      checkReady();
+      if (ready) rerender(); // real-time update po inicializaci
+    },
+    err => {
+      console.error('sessions error:', err.code, err.message);
+      showMsg('⚠ Chyba čtení: ' + err.code + ' — over Firestore Rules!');
+      gotS = true; checkReady();
     }
-    gotC=true; tryReady(TO);
-  }, err=>{ gotC=true; tryReady(TO); });
+  );
+
+  // REGISTRATIONS listener
+  db.collection('registrations').onSnapshot(
+    snap => {
+      D.registrations = snap.docs.map(d => ({id:d.id, ...d.data()}));
+      gotR = true;
+      console.log('registrations updated:', D.registrations.length);
+      checkReady();
+      if (ready) rerender();
+    },
+    err => { console.error('registrations error:', err.code); gotR = true; checkReady(); }
+  );
+
+  // CONFIG listener
+  db.collection('meta').doc('config').onSnapshot(
+    doc => {
+      if (doc.exists) {
+        const d = doc.data();
+        D.trainerInfo   = d.trainerInfo   || '';
+        D.contact       = d.contact       || {};
+        D.adminPassword = d.adminPassword || 'admin123';
+      }
+      gotC = true;
+      checkReady();
+      if (ready) rerender();
+    },
+    err => { gotC = true; checkReady(); }
+  );
 }
 
-function tryReady(TO) {
+// Čeká na první načtení všech tří kolekcí
+function checkReady() {
   if (!gotS || !gotR || !gotC) return;
-  clearTimeout(TO);
-  if (!ready) {
-    ready=true;
-    document.getElementById('loadOverlay').style.display='none';
-    // Prázdná databáze → vytvoř demo tréninky
-    seedIfEmpty();
-  }
-  renderPublic();
-  if (loggedIn) { renderSessions(); renderRegs(); }
+  if (ready) return; // už inicializováno
+  ready = true;
+  clearTimeout(loadTO);
+  document.getElementById('loadOverlay').style.display = 'none';
+  console.log('App ready. Sessions:', D.sessions.length, 'Regs:', D.registrations.length);
+  rerender();
 }
 
 // ═══════════════════════════════════════════════════
 //  FIRESTORE WRITES (all async, fire-and-forget with toast on error)
 // ═══════════════════════════════════════════════════
-function fw(p) { p.catch(e=>{ console.error(e); toast('Chyba uložení: '+e.message,'err'); }); }
+function fw(p, label) {
+  p.then(()=>{ console.log('✔ write ok', label||''); })
+   .catch(e=>{ console.error('✘ write error', label, e.code, e.message); toast('⚠ Chyba uložení ('+e.code+'): '+e.message,'err'); });
+}
 
-function fsSet(col, id, data)   { fw(db.collection(col).doc(id).set(data)); }
-function fsDel(col, id)         { fw(db.collection(col).doc(id).delete()); }
-function fsUpd(col, id, data)   { fw(db.collection(col).doc(id).update(data)); }
-function fsMeta(data)           { fw(db.collection('meta').doc('config').set(data,{merge:true})); }
+function fsSet(col, id, data)   { fw(db.collection(col).doc(id).set(data), col+'/'+id); }
+function fsDel(col, id)         { fw(db.collection(col).doc(id).delete(), 'del '+col+'/'+id); }
+function fsUpd(col, id, data)   { fw(db.collection(col).doc(id).update(data), 'upd '+col+'/'+id); }
+function fsMeta(data)           { fw(db.collection('meta').doc('config').set(data,{merge:true}), 'meta'); }
 
 function fsReorderWL(sessionId) {
   const waits = D.registrations
@@ -862,9 +924,11 @@ function doSignup() {
     toast('Interval byl mezitím obsazen.','err'); closeM('mSignup'); return;
   }
   const reg={id:uid(),sessionId,slotTime,handlerName:handler,dogName:dog,status:'confirmed',waitlistPosition:null,createdAt:Date.now()};
+  D.registrations.push(reg); // lokální aktualizace okamžitě
   closeM('mSignup');
   fsSet('registrations', reg.id, reg);
-  if (SU.admin) renderDetailBody(sessionId);
+  renderPublic();
+  if (SU.admin) { renderDetailBody(sessionId); renderSessions(); }
   toast(`✔ Přihlášen: ${handler} / ${dog} na ${slotTime}`);
 }
 
@@ -885,8 +949,10 @@ function doWaitlist() {
   if (!handler||!dog) return toast('Vyplň jméno psovoda i psa.','err');
   const pos=D.registrations.filter(r=>r.sessionId===WL.sessionId&&r.status==='waitlist').length+1;
   const reg={id:uid(),sessionId:WL.sessionId,slotTime:null,handlerName:handler,dogName:dog,status:'waitlist',waitlistPosition:pos,createdAt:Date.now()};
+  D.registrations.push(reg);
   closeM('mWait');
   fsSet('registrations', reg.id, reg);
+  renderPublic();
   toast(`✔ Zapsán/a na čekací listinu: ${handler} / ${dog}`);
 }
 
@@ -990,33 +1056,57 @@ function saveSession() {
     const s=D.sessions.find(s=>s.id===editSID);
     const upd={location,startTime,slotDuration,slotCount};
     if (editScope==='series'&&s.repeatGroupId) {
-      D.sessions.filter(s2=>s2.repeatGroupId===s.repeatGroupId).forEach(s2=>fsSet('sessions',s2.id,{...s2,...upd}));
+      D.sessions.filter(s2=>s2.repeatGroupId===s.repeatGroupId).forEach(s2=>{
+        Object.assign(s2,upd);
+        fsSet('sessions',s2.id,s2);
+      });
       toast('Série termínů upravena.');
-    } else { fsSet('sessions',editSID,{...s,date,...upd}); toast('Termín upraven.'); }
+    } else {
+      Object.assign(s,{date,...upd});
+      fsSet('sessions',editSID,s);
+      toast('Termín upraven.');
+    }
   } else {
     const rep=document.getElementById('sRep').checked;
     if (rep) {
       const every=parseInt(document.getElementById('rEvery').value)||7, count=parseInt(document.getElementById('rCnt').value)||4, gid=uid();
-      for(let i=0;i<count;i++){const d=new Date(date+'T00:00:00');d.setDate(d.getDate()+i*every);const ns={id:uid(),date:fmt(d),location,startTime,slotDuration,slotCount,repeatGroupId:gid,createdAt:Date.now()};fsSet('sessions',ns.id,ns);}
+      for(let i=0;i<count;i++){
+        const d=new Date(date+'T00:00:00'); d.setDate(d.getDate()+i*every);
+        const ns={id:uid(),date:fmt(d),location,startTime,slotDuration,slotCount,repeatGroupId:gid,createdAt:Date.now()};
+        D.sessions.push(ns);
+        fsSet('sessions',ns.id,ns);
+      }
       toast(`Vytvořeno ${count} opakovaných termínů.`);
     } else {
       const ns={id:uid(),date,location,startTime,slotDuration,slotCount,repeatGroupId:null,createdAt:Date.now()};
-      fsSet('sessions',ns.id,ns); toast('Termín vytvořen.');
+      D.sessions.push(ns);
+      fsSet('sessions',ns.id,ns);
+      toast('Termín vytvořen.');
     }
   }
+  // Okamžitý re-render (Firestore listener přijde za chvíli, ale UI aktualizujeme hned)
+  renderSessions();
+  fillRegSel();
 }
 
 function deleteS(id) {
   const s=D.sessions.find(s=>s.id===id);
   confirm2(`Smazat termín ${dispDate(s.date)} a všechny přihlášky?`, ()=>{
-    fsDelSession(id); toast('Termín smazán.');
+    D.sessions = D.sessions.filter(s=>s.id!==id);
+    D.registrations = D.registrations.filter(r=>r.sessionId!==id);
+    fsDelSession(id);
+    renderSessions(); fillRegSel();
+    toast('Termín smazán.');
   },'Smazat termín');
 }
 function copyS(id) {
   const s=D.sessions.find(s=>s.id===id), d=new Date(s.date+'T00:00:00');
   d.setDate(d.getDate()+7);
   const ns={id:uid(),date:fmt(d),location:s.location,startTime:s.startTime,slotDuration:s.slotDuration,slotCount:s.slotCount,repeatGroupId:null,createdAt:Date.now()};
-  fsSet('sessions',ns.id,ns); toast(`Termín zkopírován → ${dispDate(fmt(d))}`);
+  D.sessions.push(ns);
+  fsSet('sessions',ns.id,ns);
+  renderSessions(); fillRegSel();
+  toast(`Termín zkopírován → ${dispDate(fmt(d))}`);
 }
 
 // ═══════════════════════════════════════════════════
